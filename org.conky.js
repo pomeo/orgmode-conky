@@ -1,23 +1,4 @@
-const lineReader = require('readline').createInterface({
-  input: require('fs').createReadStream('/dir/to/your/file.org')
-});
-
-let trigger = true;
-let last = true;
-
-function notShow(line) {
-  [
-      /:LOGBOOK:/g,
-      /:END:/g
-  ].some((regexp) => {
-    if (regexp.test(line)) {
-      trigger = !trigger;
-      last = false;
-    } else {
-      last = true;
-    }
-  });
-}
+const org = require('org-mode-parser');
 
 const colors = [
   {
@@ -53,9 +34,44 @@ function colorize(line) {
   }
 }
 
-lineReader.on('line', (line) => {
-  notShow(line);
-  if (trigger && last) {
-    console.log(colorize(line));
-  }
+org.makelist(process.argv.slice(2)[0], (nodelist) => {
+  const min = process.argv.slice(3)[0].split(',')[0] || 0;
+  const max = process.argv.slice(3)[0].split(',')[1] || 100;
+  let i = 0;
+  nodelist.forEach(node => {
+    let tags = '';
+    if (Object.keys(node.tags).length) {
+      tags = `:${Object.keys(node.tags).join(':')}:`;
+    }
+    if (i >= min && i < max) {
+      if (node.todo) {
+        console.log(`${'  '.repeat(node.level)} ${colorize(node.todo)} ${node.headline} ${tags}`);
+      } else {
+        console.log(`${'  '.repeat(node.level)} ${colorize(node.headline)} ${tags}`);
+      }
+    }
+    i += 1;
+    if (node.body) {
+      node.body.split('\n').forEach(line => {
+        if (line) {
+          if (i >= min && i < max) {
+            console.log(`${'  '.repeat(node.level + 1)} ${colorize(line)}`);
+          }
+          i += 1;
+        }
+      })
+    }
+    if (node.deadline) {
+      if (i >= min && i < max) {
+        console.log(`${'  '.repeat(node.level + 1)} ${colorize('DEADLINE')}: ${node.deadline}`);
+      }
+      i += 1;
+    }
+    if (node.scheduled) {
+      if (i >= min && i < max) {
+        console.log(`${'  '.repeat(node.level + 1)} ${colorize('SCHEDULED')}: ${node.scheduled}`);
+      }
+      i += 1;
+    }
+  });
 });
